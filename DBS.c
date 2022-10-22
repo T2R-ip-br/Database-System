@@ -41,14 +41,21 @@ void to_upper(char* str);
 int before_space(char *comand, int i);
 // Отображение сообщения о том что команда не найдена
 void command_not_found(void);
+// Отображение служебного сообщения
+void print_service_message(char * message);
+// Отображение служебного сообщения белым текстом
+void print_service_message_white(char * message);
 
 /*---------------------------------------------------------------------------------------------------------------*/
 
     /*
-     * TODO: реализовать команду создания таблиц 
+     * TODO: реализовать команду отображения таблиц в базе данных.
+     * TODO: сделать проверку на существование уже таблицы с таким именем при поптке её создания (можно хранить в служебном файле 
+     * количество таблиц и список их имён, и при попытке создания таблицы сравнивать имя создаваемой таблицы с уже имеющимися)
+     * TODO: реализовать сохранение имени новой таблицы в базе данных и обновление счётчика их количества в служебном файле БД
      * TODO: Чтение и формирование собственной структуры при чтении таблиц и их обработки попробовать использовать malloc 
      * предварительно подсчитав сколько может занимать одна запись в таблице в соответствии с типами данных выделить 
-     * нужный объём памяти для работы выше указанно функцией, смотри стр 592
+     * нужный объём памяти для работы выше указанно функцией, смотри стр 592 или использовать united
      */
 
 
@@ -68,6 +75,7 @@ int main() {
     printf("\n");
     return 0;
 }
+
 /*---------------------------------------------------------------------------------------------------------------*/
 // Отображение приветствия
 
@@ -83,6 +91,7 @@ void salute(void) {
     /* Зелёный цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
     printf(" Enter the command:\n");
 }
+
 /*---------------------------------------------------------------------------------------------------------------*/
 // чтение команды пользователя
 
@@ -112,7 +121,7 @@ void reading_command(void) {
     // Очистка буфера
     while(getchar() != '\n') continue;
 
-    printf("\n");
+    //printf("\n");
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
@@ -169,78 +178,23 @@ void formatting_command(char comand[]) {
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
-// Обработка команды пользователя версия 1
-
-void processing_command(char comand[]) {
-
-    int strl = strlen(comand);
-    char ch;
-    char word_comand[SIZECOMAND];
-    int t = 0;
-
-    for(int i = 0; i < strl; i++) {
-
-        if(isspace(comand[i]) || comand[i] == ';') {
-            word_comand[t] = '\0';
-
-            // Проверка чтения команды
-            // printf("%s$ \n", word_comand);
-
-            if(strcmp(word_comand, "HELP") == 0 && comand[i] == ';') {
-                comand_help();
-                break;
-
-            } else if(strcmp(word_comand, "EXIT") == 0) {
-                comand_exit();
-                break;
-
-            } else if(strcmp(word_comand, "CREATE") == 0) {
-                word_comand[t++] = ' ';
-
-            } else if(strcmp(word_comand, "CREATE TABLE") == 0) {
-                word_comand[t++] = ' ';
-
-            } else if(strcmp(substring(word_comand, 0, 13), "CREATE TABLE ") == 0 && isalpha(comand[13])) {
-                printf("OK:200");
-
-                // TODO: Реализовать захват имени таблицы прочитав строку до символа ';' через цикл while
-                // TODO: Реализовать создание таблицы (файла) с указанным именем
-
-                break;
-
-            } else {
-                /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-                printf("<< Command not found! Check it out: \'help;\'.");
-                break;
-            }
-
-        } else {
-            word_comand[t++] = toupper(comand[i]);
-        }
-
-        if(i == strl -1) {
-            /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-            printf("<< Command not found! Check it out: \'help;\'.");
-        }
-    }
-}
-
-/*---------------------------------------------------------------------------------------------------------------*/
 // Команда [ HELP ] отображение справочной информации по командам
 
 void comand_help(void) {
     /* Белый цвет текста консоли*/ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),7);
-    printf("<< Information on comands:\n\n");
+    printf("%s: Information on comands:\n\n", used_database);
     //  help - отображает все имеющиеся в системе команды
     printf("\t help; - displays all commands available in the system.\n\n");
     //  exit - завершить работу с системой базы данных.
     printf("\t exit; - exit the database system.\n\n");
     //  create - ключевое слово участвующее в создании базы данных или таблицы.
     printf("\t create * - keyword involved in creating a database or table.\n\n");
+    //  create database - создание базы данных.
+    printf("\t create database *; - creating a database.\n\n");
     //  create table - создание таблицы в используемой базе данных.
     printf("\t create table *; - creating a table in the database being used.\n\n");
-    //  create database - создание базы данных.
-    printf("\t create database *; - creating a database.");
+    //  use * - использование указанной базы данных.
+    printf("\t use *; - using the specified database.\n");
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
@@ -248,7 +202,7 @@ void comand_help(void) {
 
 void comand_exit(void) {
     work = 0;
-    printf("<< System operation is completed.");
+    print_service_message_white("System operation is completed");
     /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),7);
 }
 
@@ -277,93 +231,6 @@ char * substring(char str[], int start, int end) {
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
-// Обработка команды пользователя версия 2
-
-void processing_command_v2(char comand[]) {
-
-    char first_symbol;
-    // указатель для строки команды
-    char *p_subcomand;
-    // указатель на имя объекта (таблицы, базы данных...)
-    char *p_name_object;
-    // путь к директории хранения таблиц
-    char path_to_tables[80] = ".\\tables\\";
-    // Объявление указателя на файл
-	FILE * fptr;
-
-    to_upper(comand);
-    first_symbol = comand[0];
-
-    // printf("%s.\n", comand);
-
-    switch (first_symbol)
-    {
-        case 'C':
-            p_subcomand = substring(comand, 0, 13);
-
-            if (strcmp(p_subcomand, "CREATE TABLE ") == 0 && isalpha(comand[13])) {
-                
-                p_name_object = substring(comand, 13, (int) ((char *)strchr(comand, ';') - (char *)comand)/sizeof(char) );
-
-                // добавление к пути имени талицы
-                strcat(path_to_tables, p_name_object);
-                // добавление расширения файла
-                strcat(path_to_tables, ".txt");
-
-                printf("%s\n", path_to_tables);
-
-                fptr = fopen(path_to_tables, "w");
-
-                // Проверка что файл удалось открыть
-                if(fptr == 0) {
-                    printf("Don't can open file!");
-                    exit(1);
-                }
-
-                fprintf(fptr, "*** Coordinate ***\n");
-                
-                //Закрываем файл
-		        fclose(fptr);
-                free(p_subcomand);
-                free(p_name_object);
-                break;
-            } 
-
-            /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-            printf("<< Command not found! Check it out: \'help;\'.");
-            
-            free(p_subcomand);
-            break;
-            
-
-        case 'E':
-            if (strcmp(comand, "EXIT;") == 0) {
-                comand_exit();
-            } else {
-                /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-                printf("<< Command not found! Check it out: \'help;\'.");
-            }
-            break;
-
-        case 'H':
-            if (strcmp(comand, "HELP;") == 0) {
-                comand_help();
-            } else {
-                /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-                printf("<< Command not found! Check it out: \'help;\'.");
-            }
-        break;
-
-
-
-        default:
-            /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-            printf("<< Command not found! Check it out: \'help;\'.");
-            break;
-    }
-}
-
-/*---------------------------------------------------------------------------------------------------------------*/
 // Переводит все символы в прописные
 
 void to_upper(char* str) {
@@ -375,13 +242,13 @@ void to_upper(char* str) {
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
-// Обработка команды пользователя версия 3
+// Обработка команды пользователя
 
-void processing_command_v3(char comand[]) { 
+void processing_command(char comand[]) { 
 
     char first_char = toupper(comand[0]);
     char *word_comand;
-    char path[171] = ".\\data\\";
+    char path[175] = ".\\data\\";
 
     int pointer = 0;
 
@@ -419,21 +286,50 @@ void processing_command_v3(char comand[]) {
 
                         // Создание служебного файла в базе данных
                         if((fp = fopen(path, "wb")) == NULL) {
-                            /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-                            printf("<< Failed to create a database.");
+                            print_service_message("Failed to create a database");
                             break;
                         }
                         // сохранение в служебном файле имя базы данных
                         fwrite(word_comand, sizeof(char), strlen(word_comand), fp);
 		                fclose(fp);
 
+                        print_service_message_white("The database has been created");
+
                     } else {
-                        /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-                        printf("<< Failed to create a database.");
+                        print_service_message("Failed to create a database");
                     }
                     
                 // Создание таблицы
                 } else if(strcmp("TABLE", word_comand) == 0) {                    
+
+                    // Проверка на то, что в данный момент используется какая-либо база данных
+                    if(strcmp(used_database, ":") == 0) {
+                        print_service_message("No database selected");
+                        break;
+                    }
+                    
+                    word_comand = substring(comand, pointer, before_space(comand, pointer));
+                    
+                    // Проверка на то, чтобы имя таблицы не совпадало с именем базы данных
+                    if(strcmp(used_database, word_comand) == 0) {
+                        print_service_message("You cannot create a table with a database name");
+                        break;
+                    }
+
+                    strcat(path, "\\");
+                    strncat(path, used_database, 80);
+                    strcat(path, "\\");
+                    strncat(path, word_comand, 80);
+                    strcat(path, ".dat");
+
+                    // Создание файла таблицы в базе данных
+                    if((fp = fopen(path, "a")) == NULL) {
+                        print_service_message("Failed to create a table");
+                        break;
+                    }
+                    print_service_message_white("The table has been created");
+
+                    fclose(fp);
 
                 } else {
                     command_not_found();
@@ -474,7 +370,7 @@ void processing_command_v3(char comand[]) {
             to_upper(word_comand);
             pointer = before_space(comand, pointer) + 1;
 
-            // Проверка первого ключевого слова CREATE
+            // Проверка первого ключевого слова USE
             if(strcmp("USE", word_comand) == 0) { 
                 
                 word_comand = substring(comand, pointer, before_space(comand, pointer));
@@ -489,8 +385,7 @@ void processing_command_v3(char comand[]) {
                  * служебного файла, так и базы данных в нужном месте.
                  */
                 if((fp = fopen(path, "rb")) == NULL) {
-                    /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-                    fprintf(stderr, "The database could not be opened or there is no such database.");
+                    print_service_message("The database could not be opened or there is no such database");
                 } else {
                     strncpy(used_database, word_comand, 80);
                 }
@@ -523,7 +418,21 @@ int before_space(char *comand, int i) {
 // Отображение сообщения о том что команда не найдена
 
 void command_not_found(void) {
-
     /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-    printf("<< Command not found! Check it out: \'help;\'.");
+    printf("%s: Command not found! Check it out: \'help;\'.\n", used_database);
+}
+
+/*---------------------------------------------------------------------------------------------------------------*/
+// Отображение служебного сообщения
+
+void print_service_message(char * message) {
+    /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
+    printf("%s: %s.\n", used_database, message);
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Отображение служебного сообщения белым текстом
+
+void print_service_message_white(char * message) {
+    /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+    printf("%s: %s.\n", used_database, message);
 }
