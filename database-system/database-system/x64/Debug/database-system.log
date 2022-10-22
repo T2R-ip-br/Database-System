@@ -1,0 +1,9 @@
+﻿  database-system.cpp
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\include\yvals_core.h(23,1): fatal  error C1189: #error:  STL1003: Unexpected compiler, expected C++ compiler.
+  dbs.c
+D:\C\Database System\database-system\database-system\dbs.c(114,5): error C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\C\Database System\database-system\database-system\dbs.c(188,17): warning C4013: comand_exit: нет определения; предполагается "extern" с возвратом типа "int"
+D:\C\Database System\database-system\database-system\dbs.c(169,16): warning C4267: инициализация: преобразование из "size_t" в "int"; возможна потеря данных
+D:\C\Database System\database-system\database-system\dbs.c(170,10): warning C4101: ch: неиспользованная локальная переменная
+D:\C\Database System\database-system\database-system\dbs.c(244,6): error C2371: comand_exit: переопределение; различные базовые типы
+  Создание кода...
