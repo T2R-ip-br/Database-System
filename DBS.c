@@ -19,12 +19,8 @@ static char used_database[81] = ":";
 void salute(void);
 // чтение команды пользователя
 void reading_command(void);
-// обработка команды пользователя версия 1
+// обработка команды пользователя
 void processing_command(char comand[]);
-// Обработка команды пользователя версия 2
-void processing_command_v2(char comand[]);
-// Обработка команды пользователя версия 3
-void processing_command_v3(char comand[]);
 // Форматирование команды пользователя
 void formatting_command(char comand[]);
 // Команда отображение справочной информации по командам
@@ -49,13 +45,13 @@ void print_service_message_white(char * message);
 /*---------------------------------------------------------------------------------------------------------------*/
 
     /*
-     * TODO: реализовать команду отображения таблиц в базе данных.
+     * TODO: реализовать команду отображения таблиц в базе данных;
+     * TODO: Попробовать заменить strcat на sprintf;
      * TODO: сделать проверку на существование уже таблицы с таким именем при поптке её создания (можно хранить в служебном файле 
-     * количество таблиц и список их имён, и при попытке создания таблицы сравнивать имя создаваемой таблицы с уже имеющимися)
-     * TODO: реализовать сохранение имени новой таблицы в базе данных и обновление счётчика их количества в служебном файле БД
+     * количество таблиц и список их имён, и при попытке создания таблицы сравнивать имя создаваемой таблицы с уже имеющимися);
      * TODO: Чтение и формирование собственной структуры при чтении таблиц и их обработки попробовать использовать malloc 
      * предварительно подсчитав сколько может занимать одна запись в таблице в соответствии с типами данных выделить 
-     * нужный объём памяти для работы выше указанно функцией, смотри стр 592 или использовать united
+     * нужный объём памяти для работы выше указанно функцией, смотри стр 592 или использовать united;
      */
 
 
@@ -116,7 +112,7 @@ void reading_command(void) {
     formatting_command(comand);
 
     // Обработка введёной команды
-    processing_command_v3(comand);
+    processing_command(comand);
 
     // Очистка буфера
     while(getchar() != '\n') continue;
@@ -279,18 +275,20 @@ void processing_command(char comand[]) {
                     strncat(path, word_comand, 80);
 
                     if (_mkdir(path) == 0) {
-                        
-                        strcat(path, "\\");
-                        strncat(path, word_comand, 80);
-                        strcat(path, ".dat");
 
+                        sprintf(path, ".\\data\\%s\\%s.dat", word_comand, word_comand);
+                        
                         // Создание служебного файла в базе данных
                         if((fp = fopen(path, "wb")) == NULL) {
                             print_service_message("Failed to create a database");
                             break;
                         }
                         // сохранение в служебном файле имя базы данных
-                        fwrite(word_comand, sizeof(char), strlen(word_comand), fp);
+                        unsigned int number_of_tables = 0; // начальное значение количества таблиц в базе данных
+                        fprintf(fp, "name: %s", word_comand);
+                        fprintf(fp, "\nnumber_of_tables: ");
+                        fwrite(&number_of_tables, sizeof(unsigned int), 1, fp);
+                        fprintf(fp, "\ntables:\n");
 		                fclose(fp);
 
                         print_service_message_white("The database has been created");
@@ -316,17 +314,36 @@ void processing_command(char comand[]) {
                         break;
                     }
 
-                    strcat(path, "\\");
-                    strncat(path, used_database, 80);
-                    strcat(path, "\\");
-                    strncat(path, word_comand, 80);
-                    strcat(path, ".dat");
+                    sprintf(path, ".\\data\\%s\\%s.dat", used_database, word_comand);
 
                     // Создание файла таблицы в базе данных
                     if((fp = fopen(path, "a")) == NULL) {
                         print_service_message("Failed to create a table");
                         break;
                     }
+
+                    sprintf(path, ".\\data\\%s\\%s.dat", used_database, used_database);
+                    if((fp = fopen(path, "r+")) == NULL) {
+                        print_service_message("Failed to create a table");
+                        break;
+                    }
+
+                    // Получение значения количества таблиц в базе данных из служебного файла
+                    unsigned int number_of_tables;
+                    fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
+                    fread(&number_of_tables, sizeof(unsigned int), 1, fp);
+
+                    // Увеличение количества таблиц на 1 и запись нового значения в служебный файл
+                    number_of_tables++;
+                    fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
+                    fwrite(&number_of_tables, sizeof(unsigned int), 1, fp);
+
+                    // Сохранение имени таблицы в служебном файле
+                    char name_table[81];
+                    sprintf(name_table, "%s", word_comand);
+                    fseek(fp, 0, SEEK_END);
+                    fwrite(name_table, sizeof(char), 80, fp);
+
                     print_service_message_white("The table has been created");
 
                     fclose(fp);
