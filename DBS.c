@@ -46,9 +46,7 @@ void print_service_message_white(char * message);
 
     /*
      * TODO: реализовать команду отображения таблиц в базе данных;
-     * TODO: Попробовать заменить strcat на sprintf;
-     * TODO: сделать проверку на существование уже таблицы с таким именем при поптке её создания (можно хранить в служебном файле 
-     * количество таблиц и список их имён, и при попытке создания таблицы сравнивать имя создаваемой таблицы с уже имеющимися);
+     * TODO: Вынести получение списка таблиц базы данных в отдельную функцию;
      * TODO: Чтение и формирование собственной структуры при чтении таблиц и их обработки попробовать использовать malloc 
      * предварительно подсчитав сколько может занимать одна запись в таблице в соответствии с типами данных выделить 
      * нужный объём памяти для работы выше указанно функцией, смотри стр 592 или использовать united;
@@ -245,6 +243,7 @@ void processing_command(char comand[]) {
     char first_char = toupper(comand[0]);
     char *word_comand;
     char path[175] = ".\\data\\";
+    bool confirmation = 0;
 
     int pointer = 0;
 
@@ -314,14 +313,7 @@ void processing_command(char comand[]) {
                         break;
                     }
 
-                    sprintf(path, ".\\data\\%s\\%s.dat", used_database, word_comand);
-
-                    // Создание файла таблицы в базе данных
-                    if((fp = fopen(path, "a")) == NULL) {
-                        print_service_message("Failed to create a table");
-                        break;
-                    }
-
+                    // Открытие служебного файла
                     sprintf(path, ".\\data\\%s\\%s.dat", used_database, used_database);
                     if((fp = fopen(path, "r+")) == NULL) {
                         print_service_message("Failed to create a table");
@@ -332,6 +324,26 @@ void processing_command(char comand[]) {
                     unsigned int number_of_tables;
                     fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
                     fread(&number_of_tables, sizeof(unsigned int), 1, fp);
+
+                    // Получение списка всех таблиц в базе данных
+                    char (* list_tables)[81];
+                    list_tables = (char (*)[81] ) malloc(sizeof(char [81]) * number_of_tables);
+                    fseek(fp, (long)(34 + strlen(used_database) + sizeof(unsigned int)), SEEK_SET);
+                    for(int i = 0; i < number_of_tables; i++) {
+                        fread(list_tables[i], sizeof(char [80]), 1, fp);
+                        if(strcmp(list_tables[i], word_comand) == 0) {
+                            confirmation = 1;
+                            break;
+                        }
+                    }
+                    // Если таблица с таким названием уже существует:
+                    if(confirmation) {
+                        print_service_message("A table with this name already exists");
+                        break;
+                    }
+
+                    // Проверка на совпадение имён таблиц, униакльность имени таблицы
+                    /* ... */
 
                     // Увеличение количества таблиц на 1 и запись нового значения в служебный файл
                     number_of_tables++;
@@ -344,8 +356,20 @@ void processing_command(char comand[]) {
                     fseek(fp, 0, SEEK_END);
                     fwrite(name_table, sizeof(char), 80, fp);
 
+                    // Закрытие служебного файла
+                    fclose(fp);
+
+                    sprintf(path, ".\\data\\%s\\%s.dat", used_database, word_comand);
+
+                    // Создание файла таблицы в базе данных
+                    if((fp = fopen(path, "a")) == NULL) {
+                        print_service_message("Failed to create a table");
+                        break;
+                    }
+
                     print_service_message_white("The table has been created");
 
+                    // закрытие файла таблицы
                     fclose(fp);
 
                 } else {
