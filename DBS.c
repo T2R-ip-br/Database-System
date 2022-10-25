@@ -41,11 +41,20 @@ void command_not_found(void);
 void print_service_message(char * message);
 // Отображение служебного сообщения белым текстом
 void print_service_message_white(char * message);
+// Отображение списка таблиц используемой базы данных
+void comand_show_tables(void);
+// Получить список таблиц используемой базы данных
+char ** get_list_tables(void);
+// Проверка на то, что в данный момент используется какая-либо база данных
+bool checking_database_used(void);
+// Получить количество таблиц в базе данных
+int get_number_of_tables(void);
 
 /*---------------------------------------------------------------------------------------------------------------*/
 
     /*
-     * TODO: реализовать команду отображения таблиц в базе данных;
+     * TODO: Создать служебный файл который будет хранить количество и имена всех баз данных;
+     * TODO: Реализовать команду отображения всех баз данных
      * TODO: Вынести получение списка таблиц базы данных в отдельную функцию;
      * TODO: Чтение и формирование собственной структуры при чтении таблиц и их обработки попробовать использовать malloc 
      * предварительно подсчитав сколько может занимать одна запись в таблице в соответствии с типами данных выделить 
@@ -176,19 +185,24 @@ void formatting_command(char comand[]) {
 
 void comand_help(void) {
     /* Белый цвет текста консоли*/ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),7);
-    printf("%s: Information on comands:\n\n", used_database);
+    printf("\n");
     //  help - отображает все имеющиеся в системе команды
-    printf("\t help; - displays all commands available in the system.\n\n");
+    printf(" %-20s- displays all commands available in the system.\n", "help;");
     //  exit - завершить работу с системой базы данных.
-    printf("\t exit; - exit the database system.\n\n");
+    printf(" %-20s- exit the database system.\n", "exit;");
     //  create - ключевое слово участвующее в создании базы данных или таблицы.
-    printf("\t create * - keyword involved in creating a database or table.\n\n");
-    //  create database - создание базы данных.
-    printf("\t create database *; - creating a database.\n\n");
-    //  create table - создание таблицы в используемой базе данных.
-    printf("\t create table *; - creating a table in the database being used.\n\n");
+    printf(" %-20s- keyword involved in creating a database or table.\n", "create *");
+    //  create database %-20s- создание базы данных.
+    printf(" %-20s- creating a database.\n", "create database *;");
+    //  create table %-20s- создание таблицы в используемой базе данных.
+    printf(" %-20s- creating a table in the database being used.\n", "create table *;");
     //  use * - использование указанной базы данных.
-    printf("\t use *; - using the specified database.\n");
+    printf(" %-20s- using the specified database.\n", "use *;");
+    //  show tables - отображение списка таблиц используемой базы данных.
+    printf(" %-20s- displaying a list of tables in the database being used.\n", "show tables;");
+    //  show tables - отображение списка баз данных.
+    printf(" %-20s- displaying a list of databases.\n", "show database;");
+    printf("\n");
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
@@ -300,11 +314,9 @@ void processing_command(char comand[]) {
                 } else if(strcmp("TABLE", word_comand) == 0) {                    
 
                     // Проверка на то, что в данный момент используется какая-либо база данных
-                    if(strcmp(used_database, ":") == 0) {
-                        print_service_message("No database selected");
+                    if(checking_database_used())
                         break;
-                    }
-                    
+
                     word_comand = substring(comand, pointer, before_space(comand, pointer));
                     
                     // Проверка на то, чтобы имя таблицы не совпадало с именем базы данных
@@ -325,25 +337,17 @@ void processing_command(char comand[]) {
                     fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
                     fread(&number_of_tables, sizeof(unsigned int), 1, fp);
 
-                    // Получение списка всех таблиц в базе данных
+                    // Получение списка всех таблиц в базе данных и проверка имени на оригинальность
                     char (* list_tables)[81];
-                    list_tables = (char (*)[81] ) malloc(sizeof(char [81]) * number_of_tables);
-                    fseek(fp, (long)(34 + strlen(used_database) + sizeof(unsigned int)), SEEK_SET);
+                    list_tables = get_list_tables();
                     for(int i = 0; i < number_of_tables; i++) {
-                        fread(list_tables[i], sizeof(char [80]), 1, fp);
+                        // Проверка на оригинальность имени создаваемой таблицы
                         if(strcmp(list_tables[i], word_comand) == 0) {
-                            confirmation = 1;
-                            break;
+                            print_service_message("A table with this name already exists");
+                            return;
                         }
                     }
-                    // Если таблица с таким названием уже существует:
-                    if(confirmation) {
-                        print_service_message("A table with this name already exists");
-                        break;
-                    }
-
-                    // Проверка на совпадение имён таблиц, униакльность имени таблицы
-                    /* ... */
+                    free(list_tables);
 
                     // Увеличение количества таблиц на 1 и запись нового значения в служебный файл
                     number_of_tables++;
@@ -404,6 +408,19 @@ void processing_command(char comand[]) {
             }
             break;
         
+        case 'S':
+
+            to_upper(comand);
+
+            if (strcmp(comand, "SHOW DATABASE;") == 0) {
+                // comand_show_database();
+            } else if (strcmp(comand, "SHOW TABLES;") == 0) {
+                comand_show_tables();
+            } else {
+                command_not_found();
+            }
+            break;
+
         case 'U':
 
             // Чтение первого слова. Преобразование его в прописной вид. Сохранение индекса начала следующего слова команды
@@ -430,6 +447,7 @@ void processing_command(char comand[]) {
                 } else {
                     strncpy(used_database, word_comand, 80);
                 }
+                fclose(fp);
 
             } else {
                 command_not_found();
@@ -460,7 +478,7 @@ int before_space(char *comand, int i) {
 
 void command_not_found(void) {
     /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-    printf("%s: Command not found! Check it out: \'help;\'.\n", used_database);
+    printf("%s: Command not found! Check it out: help;\n", used_database);
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
@@ -474,6 +492,105 @@ void print_service_message(char * message) {
 // Отображение служебного сообщения белым текстом
 
 void print_service_message_white(char * message) {
-    /* Синий цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+    /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
     printf("%s: %s.\n", used_database, message);
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Отображение списка таблиц используемой базы данных
+
+void comand_show_tables(void) {
+
+    char (* list_tables)[81];
+
+    // Проверка на то, что в данный момент используется какая-либо база данных
+    if(checking_database_used()) {
+        return;
+    }
+
+    int number_of_tables = get_number_of_tables();
+
+    list_tables = get_list_tables();
+    
+    if(number_of_tables == 0) {
+        print_service_message_white("There are no tables in the database");
+
+    } else if(number_of_tables == -1) {
+        print_service_message("Error");
+
+    } else {
+        /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+        printf("\n");
+        for(int i = 0; i < number_of_tables; i++) {
+            printf(" %s\n", list_tables[i]);
+        }
+        printf("\n");
+    }
+    free(list_tables);
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Получить список таблиц используемой базы данных
+
+char ** get_list_tables(void) {
+
+    char path[175];
+    char (* list_tables)[81];
+    FILE *fp;
+
+    // Открытие служебного файла
+    sprintf(path, ".\\data\\%s\\%s.dat", used_database, used_database);
+    if((fp = fopen(path, "r+")) == NULL) {
+        print_service_message("Failed to create a table");
+
+    } else {
+
+        // Получение значения количества таблиц в базе данных из служебного файла
+        unsigned int number_of_tables;
+        fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
+        fread(&number_of_tables, sizeof(unsigned int), 1, fp);
+
+        // Получение списка всех таблиц в базе данных
+        list_tables = (char (*)[81] ) malloc(sizeof(char [81]) * number_of_tables);
+        fseek(fp, (long)(34 + strlen(used_database) + sizeof(unsigned int)), SEEK_SET);
+        for(int i = 0; i < number_of_tables; i++) {
+            fread(list_tables[i], sizeof(char [80]), 1, fp);
+        }
+    }
+    fclose(fp);
+    return list_tables;
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Проверка на то, что в данный момент используется какая-либо база данных
+
+bool checking_database_used(void) {
+    if(strcmp(used_database, ":") == 0) {
+        print_service_message("No database selected");
+        return 1;
+    } else
+        return 0;
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Получить количество таблиц в базе данных
+
+int get_number_of_tables(void) {
+    
+    char path[175];
+    FILE *fp;
+
+    // Открытие служебного файла
+    sprintf(path, ".\\data\\%s\\%s.dat", used_database, used_database);
+    if((fp = fopen(path, "r+")) == NULL) {
+        print_service_message("Failed to create a table");
+        fclose(fp);
+        return -1;
+
+    } else {
+
+        // Получение значения количества таблиц в базе данных из служебного файла
+        unsigned int number_of_tables;
+        fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
+        fread(&number_of_tables, sizeof(unsigned int), 1, fp);
+        fclose(fp);
+        return (int) number_of_tables;
+    }
+
 }
