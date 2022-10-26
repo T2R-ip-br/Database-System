@@ -3,6 +3,7 @@
 #include <string.h>
 #include <windows.h>
 #include <stdbool.h>
+#include "ShellAPI.h"
 
 /* Отвечает за продолжение работы системы базыданных
  * Пока пользователь не введёт команду exit work равняется 1
@@ -53,9 +54,7 @@ int get_number_of_tables(void);
 /*---------------------------------------------------------------------------------------------------------------*/
 
     /*
-     * TODO: Создать служебный файл который будет хранить количество и имена всех баз данных;
-     * TODO: Реализовать команду отображения всех баз данных
-     * TODO: Вынести получение списка таблиц базы данных в отдельную функцию;
+     * TODO: вынести команду SHOW DATABASE в отдельную функцию
      * TODO: Чтение и формирование собственной структуры при чтении таблиц и их обработки попробовать использовать malloc 
      * предварительно подсчитав сколько может занимать одна запись в таблице в соответствии с типами данных выделить 
      * нужный объём памяти для работы выше указанно функцией, смотри стр 592 или использовать united;
@@ -261,7 +260,7 @@ void processing_command(char comand[]) {
 
     int pointer = 0;
 
-    FILE * fp;
+    FILE * fp = 0;
 
     switch (first_char)
     {
@@ -413,7 +412,54 @@ void processing_command(char comand[]) {
             to_upper(comand);
 
             if (strcmp(comand, "SHOW DATABASE;") == 0) {
-                // comand_show_database();
+                // Выполнение команды в командной строке по отображению списка содержимого папки .\data и сохранение результата в файл .\data\info.txt
+                ShellExecute(NULL, "open", "cmd.exe", "/C dir /d .\\data > .\\data\\info.txt", NULL,SW_SHOWNORMAL);
+                
+                // Открытие файла .\data\info.txt и отображение всех папок являющихся базами данных
+                sprintf(path, ".\\data\\info.txt");
+
+                fp = NULL;
+
+                while(fp == NULL) {
+                    fp = fopen(path, "r");
+                    Sleep(1);
+                }
+
+                /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+                fseek(fp, 0, SEEK_SET);
+                char ch;
+                char name_database[81];
+                confirmation = 0;
+                int i = 0;
+                printf("\n");
+                while((ch = getc(fp)) != EOF) {
+                    
+                    if(confirmation && ch != ']') {
+                        name_database[i] = ch;
+                        i++;
+                    }
+
+                    if(ch == '[') {
+                        confirmation = 1;
+                    } else if(ch == ']') {
+                        confirmation = 0;
+                        name_database[i] = '\0';
+                        i = 0;
+                        
+                        if(strcmp(name_database, ".") == 0 || strcmp(name_database, "..") == 0) {
+                            // . и .. это служебные файлы в любой папке имеются по умолчанию
+                        } else {
+                            printf(" %s\n", name_database);
+                        }
+                    }
+                }
+                printf("\n");
+
+                fclose(fp);
+                if(remove(path) != 0) {
+                    print_service_message("Error");
+                }
+
             } else if (strcmp(comand, "SHOW TABLES;") == 0) {
                 comand_show_tables();
             } else {
