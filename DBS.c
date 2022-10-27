@@ -50,11 +50,20 @@ char ** get_list_tables(void);
 bool checking_database_used(void);
 // Получить количество таблиц в базе данных
 int get_number_of_tables(void);
+// Отображение списка всех баз данных
+void comand_show_database(void);
+// Команда перехода к работе с указанной базой данных
+void comand_use_db(char * db_name);
+// Команда удаления базы данных
+void comand_drop_db(char * db_name);
+// Команда создания базы данных
+void comand_create_db(char * db_name);
+// Команда создания таблицы
+void comand_create_table(char * table_name);
 
 /*---------------------------------------------------------------------------------------------------------------*/
 
     /*
-     * TODO: вынести команду SHOW DATABASE в отдельную функцию
      * TODO: Чтение и формирование собственной структуры при чтении таблиц и их обработки попробовать использовать malloc 
      * предварительно подсчитав сколько может занимать одна запись в таблице в соответствии с типами данных выделить 
      * нужный объём памяти для работы выше указанно функцией, смотри стр 592 или использовать united;
@@ -190,7 +199,7 @@ void comand_help(void) {
     //  exit - завершить работу с системой базы данных.
     printf(" %-20s- exit the database system.\n", "exit;");
     //  create - ключевое слово участвующее в создании базы данных или таблицы.
-    printf(" %-20s- keyword involved in creating a database or table.\n", "create *");
+    printf(" %-20s- keyword involved in creating a database or table.\n", "create * *;");
     //  create database %-20s- создание базы данных.
     printf(" %-20s- creating a database.\n", "create database *;");
     //  create table %-20s- создание таблицы в используемой базе данных.
@@ -199,8 +208,10 @@ void comand_help(void) {
     printf(" %-20s- using the specified database.\n", "use *;");
     //  show tables - отображение списка таблиц используемой базы данных.
     printf(" %-20s- displaying a list of tables in the database being used.\n", "show tables;");
-    //  show tables - отображение списка баз данных.
+    //  show database - отображение списка баз данных.
     printf(" %-20s- displaying a list of databases.\n", "show database;");
+    //  drop database * - удаление базы данных.
+    printf(" %-20s- deleting a database.\n", "drop database *;");
     printf("\n");
 }
 
@@ -209,7 +220,7 @@ void comand_help(void) {
 
 void comand_exit(void) {
     work = 0;
-    print_service_message_white("System operation is completed");
+    print_service_message_white("System operation is completed\n");
     /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),7);
 }
 
@@ -255,12 +266,7 @@ void processing_command(char comand[]) {
 
     char first_char = toupper(comand[0]);
     char *word_comand;
-    char path[175] = ".\\data\\";
-    bool confirmation = 0;
-
     int pointer = 0;
-
-    FILE * fp = 0;
 
     switch (first_char)
     {
@@ -283,97 +289,46 @@ void processing_command(char comand[]) {
                 if(strcmp("DATABASE", word_comand) == 0) {
 
                     word_comand = substring(comand, pointer, before_space(comand, pointer));
-
-                    strncat(path, word_comand, 80);
-
-                    if (_mkdir(path) == 0) {
-
-                        sprintf(path, ".\\data\\%s\\%s.dat", word_comand, word_comand);
-                        
-                        // Создание служебного файла в базе данных
-                        if((fp = fopen(path, "wb")) == NULL) {
-                            print_service_message("Failed to create a database");
-                            break;
-                        }
-                        // сохранение в служебном файле имя базы данных
-                        unsigned int number_of_tables = 0; // начальное значение количества таблиц в базе данных
-                        fprintf(fp, "name: %s", word_comand);
-                        fprintf(fp, "\nnumber_of_tables: ");
-                        fwrite(&number_of_tables, sizeof(unsigned int), 1, fp);
-                        fprintf(fp, "\ntables:\n");
-		                fclose(fp);
-
-                        print_service_message_white("The database has been created");
-
-                    } else {
-                        print_service_message("Failed to create a database");
-                    }
+                    // Команда создания базы данных
+                    comand_create_db(word_comand);
                     
                 // Создание таблицы
                 } else if(strcmp("TABLE", word_comand) == 0) {                    
-
-                    // Проверка на то, что в данный момент используется какая-либо база данных
-                    if(checking_database_used())
-                        break;
-
-                    word_comand = substring(comand, pointer, before_space(comand, pointer));
                     
-                    // Проверка на то, чтобы имя таблицы не совпадало с именем базы данных
-                    if(strcmp(used_database, word_comand) == 0) {
-                        print_service_message("You cannot create a table with a database name");
-                        break;
-                    }
+                    word_comand = substring(comand, pointer, before_space(comand, pointer));
+                    // Команда создания таблицы
+                    comand_create_table(word_comand);
 
-                    // Открытие служебного файла
-                    sprintf(path, ".\\data\\%s\\%s.dat", used_database, used_database);
-                    if((fp = fopen(path, "r+")) == NULL) {
-                        print_service_message("Failed to create a table");
-                        break;
-                    }
+                } else {
+                    command_not_found();
+                }
 
-                    // Получение значения количества таблиц в базе данных из служебного файла
-                    unsigned int number_of_tables;
-                    fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
-                    fread(&number_of_tables, sizeof(unsigned int), 1, fp);
+            } else {
+                command_not_found();
+            }
 
-                    // Получение списка всех таблиц в базе данных и проверка имени на оригинальность
-                    char (* list_tables)[81];
-                    list_tables = get_list_tables();
-                    for(int i = 0; i < number_of_tables; i++) {
-                        // Проверка на оригинальность имени создаваемой таблицы
-                        if(strcmp(list_tables[i], word_comand) == 0) {
-                            print_service_message("A table with this name already exists");
-                            return;
-                        }
-                    }
-                    free(list_tables);
+            break;
 
-                    // Увеличение количества таблиц на 1 и запись нового значения в служебный файл
-                    number_of_tables++;
-                    fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
-                    fwrite(&number_of_tables, sizeof(unsigned int), 1, fp);
+        case 'D':
 
-                    // Сохранение имени таблицы в служебном файле
-                    char name_table[81];
-                    sprintf(name_table, "%s", word_comand);
-                    fseek(fp, 0, SEEK_END);
-                    fwrite(name_table, sizeof(char), 80, fp);
+            // Чтение первого слова. Преобразование его в прописной вид. Сохранение индекса начала следующего слова команды
+            word_comand = substring(comand, 0, before_space(comand, pointer));
+            to_upper(word_comand);
+            pointer = before_space(comand, pointer) + 1;
 
-                    // Закрытие служебного файла
-                    fclose(fp);
+            // Проверка первого ключевого слова CREATE
+            if(strcmp("DROP", word_comand) == 0) {
 
-                    sprintf(path, ".\\data\\%s\\%s.dat", used_database, word_comand);
+                word_comand = substring(comand, pointer, before_space(comand, pointer));
+                to_upper(word_comand);
+                pointer = before_space(comand, pointer) + 1;
 
-                    // Создание файла таблицы в базе данных
-                    if((fp = fopen(path, "a")) == NULL) {
-                        print_service_message("Failed to create a table");
-                        break;
-                    }
-
-                    print_service_message_white("The table has been created");
-
-                    // закрытие файла таблицы
-                    fclose(fp);
+                // Удаление базы данных
+                if(strcmp("DATABASE", word_comand) == 0) {
+                    
+                    word_comand = substring(comand, pointer, before_space(comand, pointer));
+                    // Команда удаления базы данных
+                    comand_drop_db(word_comand);
 
                 } else {
                     command_not_found();
@@ -390,6 +345,7 @@ void processing_command(char comand[]) {
             to_upper(comand);
 
             if (strcmp(comand, "EXIT;") == 0) {
+                // Команда завершения работы
                 comand_exit();
             } else {
                 command_not_found();
@@ -401,6 +357,7 @@ void processing_command(char comand[]) {
             to_upper(comand);
 
             if (strcmp(comand, "HELP;") == 0) {
+                // Команда отображение справочной информации по командам
                 comand_help();
             } else {
                 command_not_found();
@@ -412,55 +369,11 @@ void processing_command(char comand[]) {
             to_upper(comand);
 
             if (strcmp(comand, "SHOW DATABASE;") == 0) {
-                // Выполнение команды в командной строке по отображению списка содержимого папки .\data и сохранение результата в файл .\data\info.txt
-                ShellExecute(NULL, "open", "cmd.exe", "/C dir /d .\\data > .\\data\\info.txt", NULL,SW_SHOWNORMAL);
-                
-                // Открытие файла .\data\info.txt и отображение всех папок являющихся базами данных
-                sprintf(path, ".\\data\\info.txt");
-
-                fp = NULL;
-
-                while(fp == NULL) {
-                    fp = fopen(path, "r");
-                    Sleep(1);
-                }
-
-                /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
-                fseek(fp, 0, SEEK_SET);
-                char ch;
-                char name_database[81];
-                confirmation = 0;
-                int i = 0;
-                printf("\n");
-                while((ch = getc(fp)) != EOF) {
-                    
-                    if(confirmation && ch != ']') {
-                        name_database[i] = ch;
-                        i++;
-                    }
-
-                    if(ch == '[') {
-                        confirmation = 1;
-                    } else if(ch == ']') {
-                        confirmation = 0;
-                        name_database[i] = '\0';
-                        i = 0;
-                        
-                        if(strcmp(name_database, ".") == 0 || strcmp(name_database, "..") == 0) {
-                            // . и .. это служебные файлы в любой папке имеются по умолчанию
-                        } else {
-                            printf(" %s\n", name_database);
-                        }
-                    }
-                }
-                printf("\n");
-
-                fclose(fp);
-                if(remove(path) != 0) {
-                    print_service_message("Error");
-                }
+                // Отображение списка всех баз данных
+                comand_show_database();
 
             } else if (strcmp(comand, "SHOW TABLES;") == 0) {
+                // Отображение списка таблиц используемой базы данных
                 comand_show_tables();
             } else {
                 command_not_found();
@@ -478,22 +391,8 @@ void processing_command(char comand[]) {
             if(strcmp("USE", word_comand) == 0) { 
                 
                 word_comand = substring(comand, pointer, before_space(comand, pointer));
-                
-                strncat(path, word_comand, 80);
-                strcat(path, "\\");
-                strncat(path, word_comand, 80);
-                strcat(path, ".dat");
-
-                /* Проверка на существование базы данных (наличие директории, папки, каталога)
-                 * Проверка идёт на наличие служебного файла в базе данных, что докажет существование как самого 
-                 * служебного файла, так и базы данных в нужном месте.
-                 */
-                if((fp = fopen(path, "rb")) == NULL) {
-                    print_service_message("The database could not be opened or there is no such database");
-                } else {
-                    strncpy(used_database, word_comand, 80);
-                }
-                fclose(fp);
+                // Команда перехода к работе с указанной базой данных
+                comand_use_db(word_comand);
 
             } else {
                 command_not_found();
@@ -504,8 +403,6 @@ void processing_command(char comand[]) {
             command_not_found();
             break;
     }
-
-
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
@@ -539,7 +436,7 @@ void print_service_message(char * message) {
 
 void print_service_message_white(char * message) {
     /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
-    printf("%s: %s.\n", used_database, message);
+    printf("%s: %s", used_database, message);
 }
 /*---------------------------------------------------------------------------------------------------------------*/
 // Отображение списка таблиц используемой базы данных
@@ -558,7 +455,7 @@ void comand_show_tables(void) {
     list_tables = get_list_tables();
     
     if(number_of_tables == 0) {
-        print_service_message_white("There are no tables in the database");
+        print_service_message_white("There are no tables in the database\n");
 
     } else if(number_of_tables == -1) {
         print_service_message("Error");
@@ -640,3 +537,215 @@ int get_number_of_tables(void) {
     }
 
 }
+/*---------------------------------------------------------------------------------------------------------------*/
+// Отображение списка таблиц используемой базы данных
+
+void comand_show_database(void) {
+
+    // Выполнение команды в командной строке по отображению списка содержимого папки .\data и сохранение результата в файл .\data\info.txt
+    ShellExecute(NULL, "open", "cmd.exe", "/C dir /d .\\data > .\\data\\info.txt", NULL,SW_SHOWNORMAL);
+    
+    // Открытие файла .\data\info.txt и отображение всех папок являющихся базами данных
+    char path[175];
+    sprintf(path, ".\\data\\info.txt");
+
+    FILE * fp = NULL;
+
+    while(fp == NULL) {
+        fp = fopen(path, "r");
+        Sleep(1);
+    }
+
+    /* Белый цвет текста консоли */ SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+    fseek(fp, 0, SEEK_SET);
+    char ch;
+    char name_database[81];
+    bool confirmation = 0;
+    int i = 0;
+    printf("\n");
+    while((ch = getc(fp)) != EOF) {
+        
+        if(confirmation && ch != ']') {
+            name_database[i] = ch;
+            i++;
+        }
+
+        if(ch == '[') {
+            confirmation = 1;
+        } else if(ch == ']') {
+            confirmation = 0;
+            name_database[i] = '\0';
+            i = 0;
+            
+            if(strcmp(name_database, ".") == 0 || strcmp(name_database, "..") == 0) {
+                // . и .. это служебные файлы в любой папке имеются по умолчанию
+            } else {
+                printf(" %s\n", name_database);
+            }
+        }
+    }
+    printf("\n");
+
+    fclose(fp);
+    if(remove(path) != 0) {
+        print_service_message("Error");
+    }
+ }
+/*---------------------------------------------------------------------------------------------------------------*/
+// Команда перехода к работе с указанной базой данных
+
+void comand_use_db(char * db_name) {
+
+    FILE * fp;
+    char path[175];
+    sprintf(path, ".\\data\\%s\\%s.dat", db_name, db_name);
+
+    /* Проверка на существование базы данных (наличие директории, папки, каталога)
+     * Проверка идёт на наличие служебного файла в базе данных, что докажет существование как самого 
+     * служебного файла, так и базы данных в нужном месте. */
+    if((fp = fopen(path, "rb")) == NULL) {
+        print_service_message("The database could not be opened or there is no such database");
+    } else {
+        strncpy(used_database, db_name, 80);
+    }
+    fclose(fp);
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Команда удаления базы данных
+
+void comand_drop_db(char * db_name) {
+
+    int ch;
+    char path[175];
+    while ((ch = getchar()) != '\n' && ch != EOF) { }
+
+    print_service_message_white("Are you sure [ Y(yes) / N(no) ]? ");
+    ch = getchar();
+    ch = toupper(ch);
+    if(ch == 'Y') {
+        
+        sprintf(path, "/C RD /S /Q .\\data\\%s", db_name);
+        // Выполнение команды в командной строке по отображению списка содержимого папки .\data и сохранение результата в файл .\data\info.txt
+        ShellExecute(NULL, "open", "cmd.exe", path, NULL, SW_SHOWNORMAL);
+    }
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Команда создания базы данных
+
+void comand_create_db(char * db_name) {
+    
+    char path[175];
+    FILE * fp;
+
+    sprintf(path, ".\\data\\%s", db_name);
+
+    if (_mkdir(path) == 0) {
+
+        sprintf(path, ".\\data\\%s\\%s.dat", db_name, db_name);
+        
+        // Создание служебного файла в базе данных
+        if((fp = fopen(path, "wb")) == NULL) {
+            print_service_message("Failed to create a database");
+            return;
+        }
+        // сохранение в служебном файле имя базы данных
+        unsigned int number_of_tables = 0; // начальное значение количества таблиц в базе данных
+        fprintf(fp, "name: %s", db_name);
+        fprintf(fp, "\nnumber_of_tables: ");
+        fwrite(&number_of_tables, sizeof(unsigned int), 1, fp);
+        fprintf(fp, "\ntables:\n");
+        fclose(fp);
+
+        print_service_message_white("The database has been created\n");
+
+    } else {
+        print_service_message("Failed to create a database");
+    }
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Команда создания таблицы
+
+void comand_create_table(char * table_name) {
+
+    char path[175];
+    FILE * fp;
+
+    // Проверка на то, что в данный момент используется какая-либо база данных
+    if(checking_database_used())
+        return;
+    
+    // Проверка на то, чтобы имя таблицы не совпадало с именем базы данных
+    if(strcmp(used_database, table_name) == 0) {
+        print_service_message("You cannot create a table with a database name");
+        return;
+    }
+
+    // Открытие служебного файла
+    sprintf(path, ".\\data\\%s\\%s.dat", used_database, used_database);
+    if((fp = fopen(path, "r+")) == NULL) {
+        print_service_message("Failed to create a table");
+        return;
+    }
+
+    // Получение значения количества таблиц в базе данных из служебного файла
+    unsigned int number_of_tables;
+    fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
+    fread(&number_of_tables, sizeof(unsigned int), 1, fp);
+
+    // Получение списка всех таблиц в базе данных и проверка имени на оригинальность
+    char (* list_tables)[81];
+    list_tables = get_list_tables(); 
+    for(int i = 0; i < number_of_tables; i++) {
+        // Проверка на оригинальность имени создаваемой таблицы
+        if(strcmp(list_tables[i], table_name) == 0) {
+            print_service_message("A table with this name already exists");
+            return;
+        }
+    }
+    free(list_tables);
+
+    // Увеличение количества таблиц на 1 и запись нового значения в служебный файл
+    number_of_tables++;
+    fseek(fp, (long)(25 + strlen(used_database)), SEEK_SET);
+    fwrite(&number_of_tables, sizeof(unsigned int), 1, fp);
+
+    // Сохранение имени таблицы в служебном файле
+    char name_table[81];
+    sprintf(name_table, "%s", table_name);
+    fseek(fp, 0, SEEK_END);
+    fwrite(name_table, sizeof(char), 80, fp);
+
+    // Закрытие служебного файла
+    fclose(fp);
+
+    sprintf(path, ".\\data\\%s\\%s.dat", used_database, table_name);
+
+    // Создание файла таблицы в базе данных
+    if((fp = fopen(path, "a")) == NULL) {
+        print_service_message("Failed to create a table");
+        return;
+    }
+
+    print_service_message_white("The table has been created\n");
+
+    // закрытие файла таблицы
+    fclose(fp);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
