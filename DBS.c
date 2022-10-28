@@ -59,11 +59,14 @@ void comand_drop_db(char * db_name);
 // Команда создания базы данных
 void comand_create_db(char * db_name);
 // Команда создания таблицы
-void comand_create_table(char * table_name);
+void comand_create_table(char * table_name, char * comand);
+// Возвращает количество раз сколько символ встречается в строке
+int count_chars(char * str, char ch);
 
 /*---------------------------------------------------------------------------------------------------------------*/
 
-    /*
+    /* 
+     * TODO: Реализовать полноценнй функционал команды [ CREATE TABLE * * ]
      * TODO: Чтение и формирование собственной структуры при чтении таблиц и их обработки попробовать использовать malloc 
      * предварительно подсчитав сколько может занимать одна запись в таблице в соответствии с типами данных выделить 
      * нужный объём памяти для работы выше указанно функцией, смотри стр 592 или использовать united;
@@ -295,9 +298,20 @@ void processing_command(char comand[]) {
                 // Создание таблицы
                 } else if(strcmp("TABLE", word_comand) == 0) {                    
                     
-                    word_comand = substring(comand, pointer, before_space(comand, pointer));
+                    int end_space = before_space(comand, pointer);
+                    int end;
+                    char * p_begin_bracket = strchr(comand, '(');
+                    if(p_begin_bracket != 0) {
+                        end = p_begin_bracket - comand; 
+                        end = (end < end_space) ? end : end_space; // определение что первое встречается после имени таблицы, пробел или кругла скобка, предотвращение сохранения описания таблицы в имя таблицы
+                    } else {
+                        print_service_message("Error in the syntax of the description of table properties");
+                        break;
+                    }
+
+                    word_comand = substring(comand, pointer, end);
                     // Команда создания таблицы
-                    comand_create_table(word_comand);
+                    comand_create_table(word_comand, comand);
 
                 } else {
                     command_not_found();
@@ -406,7 +420,7 @@ void processing_command(char comand[]) {
 }
 
 /*---------------------------------------------------------------------------------------------------------------*/
-// Возвращает индекс следующего пробела или символа точка с запятой
+// Возвращает индекс следующего пробела (поиск начинается с указанного индекса) или символа точка с запятой
 
 int before_space(char *comand, int i) {
 
@@ -665,7 +679,7 @@ void comand_create_db(char * db_name) {
 /*---------------------------------------------------------------------------------------------------------------*/
 // Команда [ CREATE TABLE * ] создания таблицы
 
-void comand_create_table(char * table_name) {
+void comand_create_table(char * table_name, char * comand) {
 
     char path[175];
     FILE * fp;
@@ -726,10 +740,84 @@ void comand_create_table(char * table_name) {
         return;
     }
 
+    // Создание служебной записи, содержащей имена столбцов и их тип данных
+    // Получаем указатель на открывающуюся скобку
+    char * p_begin_bracket = strchr(comand, '(');
+    char * p_end_bracket   = strchr(comand, ')');
+    int begin = p_begin_bracket - comand + 1;
+    int end   = p_end_bracket - comand;
+
+    // Ошибка синтаксиса описания таблицы если 
+    if(p_begin_bracket == 0 || p_end_bracket == 0 || (end - begin) < 4) {
+        print_service_message("Error in the syntax of the description of table properties");
+        return;
+    }
+
+    // Избавляемся от возможного пробела между скобкой и первым словом 
+    if(comand[begin] == ' ') {
+        begin++;
+    }
+
+    // Описание таблицы (...)
+    char *table_description = substring(comand, begin, end);
+    // Длина описания
+    int description_length  = strlen(table_description);
+    // Строка имени столбцов
+    char * column_name;
+    // Строка параметров столбца
+    char column_param[81];
+
+    //printf("%s, %d\n", table_description, description_length);
+    /*// Чтение первого слова. Преобразование его в прописной вид. Сохранение индекса начала следующего слова команды
+            
+            word_comand = substring(comand, 0, before_space(comand, pointer));
+            to_upper(word_comand);
+            pointer = before_space(comand, pointer) + 1; 
+    */
+
+    // Получаем количество параметров в описании создаваемой таблицы, каждый параметр должен отделяться запятой
+    int number_of_parameters = 1 + count_chars(table_description, ',');
+
+    /* Если проверка на синтаксис и ликвидность имён типов данных пройдёт успешно, то можно сохранить исходную строку описания столбцов таблицы в файле */
+    int counter, pointer, index;
+    counter = pointer = index = 0;
+    for(int i = 0; i < number_of_parameters; i++) {
+        pointer = before_space(table_description, pointer);
+        column_name = substring(table_description, counter, pointer);
+        pointer++;
+
+        while(table_description[pointer] != ',' && table_description[pointer] != '\0') {
+            column_param[index] = table_description[pointer];
+            pointer++;
+            index++;
+        }
+
+        /* Произвести проверку на ликвидность типа данных создаваемой колонки */
+
+        index = 0;
+        pointer+=2;
+        counter = pointer;
+    }
+
     print_service_message_white("The table has been created\n");
 
     // закрытие файла таблицы
     fclose(fp);
+}
+/*---------------------------------------------------------------------------------------------------------------*/
+// Возвращает количество раз сколько символ встречается в строке
+
+int count_chars(char * str, char ch) {
+
+    int count = 0;
+    int length = strlen(str);
+
+    for(int i = 0; i < length; i++) {
+        if(str[i] == ch)
+            count++;
+    }
+
+    return count;
 }
 
 
